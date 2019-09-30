@@ -1,0 +1,707 @@
+---
+title: "Characteristics of the Best and Worst Junior Mathematicians"
+author: "SID: 490390494"
+subtitle: "Project 3 - Monday 9-11am Carslaw 353"
+date: "The University of Sydney | DATA1901 | May 2019"
+output:
+  prettydoc::html_pretty:
+    theme: 'cayman'
+    highlight: 'github'
+    fig_caption: TRUE
+    df_print: paged
+    number_sections: TRUE
+    self_contained: TRUE
+    toc: TRUE
+    toc_depth: 3
+editor_options: 
+  chunk_output_type: inline
+---
+```{r setup, include = F}
+require(knitr)
+
+# Setting up chunk default
+opts_chunk$set(echo = T)
+```
+
+***
+
+# Executive Summary
+
+<style>
+div.blue {background-color:#e6f0ff; border-radius:5px; padding:20px;}
+</style>
+
+<div class = "blue">
+
+**Purpose of this report:**
+
+To profile who performs the best and worst at junior-level mathematics at the University of Sydney.
+
+**Stakeholder:**
+
+Industry corporations looking to attract intelligent junior mathematicians from the University of Sydney for internships or employment.
+
+<br>
+
+**Main discoveries:**
+
+ * The best junior mathematicians are typically - full time domestic students aged 18 and under 
+ * In contrast, the worst performing junior mathematicians are generally - part time international men aged over 25
+ * There are no clear distinctions in gender and the semester of study between the best and the worst performing students
+
+</div>
+
+<br>
+
+# Initial Data Analysis (IDA)
+
+```{r packages, message = F, warning = F, echo = F}
+# Loading required packages without warnings or messages
+require(kableExtra)
+require(janitor)
+require(DT)
+require(epiDisplay)
+require(prettydoc)
+require(plotly)
+require(tidyverse)
+require(stringr)
+require(data.tree)
+require(circlepackeR)
+require(pixiedust)
+require(sfsmisc)
+```
+
+
+
+## A Glimpse of the Data Set
+
+```{r import data}
+# Importing the data set from local .csv file
+data = read.csv("Data.csv")
+
+# Changing the variable names into snake case
+data = clean_names(data)
+
+# Quick look at the data set
+datatable(data, rownames = F, filter = "top", options = list(pageLength = 5, scrollX = T))
+```
+
+
+<br>
+
+## Assessing R's Classication of the Variables 
+
+```{r assessing variables}
+# Size of the data and R's classification of the variables
+str(data)
+```
+
+The `semester` variable should be changed from integer to a factor because it takes only two possible values (1 and 2). 
+
+In addition, the class of each `canvas_access_...` variable should be logical rather than an integer, where 1 is TRUE and 0 is FALSE.
+
+```{r changing variable classes}
+# Changing the class of `semester` from integer to factor
+data$semester = as.factor(data$semester)
+
+# Changing the class of each `canvas_access_...` variable from integer to logical
+for(i in c(9:(ncol(data) - 1))) {
+    data[,i] = as.logical(data[,i])
+}
+```
+
+
+
+<br>
+
+## Source of the Data
+
+The data was obtained from Sydney University's [Instutional Analystics and Planning (IAP)](http://sydney.edu.au/provost/planning) department. It reflects the grades of students studying the top 15 junior Mathematics units in 2018 at the University of Sydney.
+
+**Each row** represents one student per unit of study while **each column** represents their characteristics. 
+
+
+
+<br>
+
+## Assessing Stakeholders
+
+**Industry corporations:** This report is of great use for industry corporations in targeting junior Sydney University students with high marks in mathematics. The discoveries made here are highly beneficial in attracting the most desirable junior interns or employees for math-focussed roles. Their specific characteristics have been well-explored throughout this research paper.
+
+
+
+<br>
+
+## Initial Questions
+
+<br>
+
+  **1. How large is the data set?**
+
+```{r data dimensions}
+# Looking at the dimensions of the data
+cat(sprintf("Rows: %d\nColumns: %d", nrow(data), ncol(data)))
+```
+
+The data set has 23 columns (variables) and 10 845 rows (entries).
+
+<br>
+
+  **2. What is the female-male split in junior Mathematics units?**
+
+```{r female-male split}
+# Finding the percent of females and males in the data set
+percent_female = sum(data$gender == "F") * 100/nrow(data)
+percent_male = sum(data$gender == "M") * 100/nrow(data)
+
+# Printing result to the nearest %
+cat(sprintf("Females = %.0f%%\nMales = %.0f%%", percent_female, percent_male))
+```
+
+From above, there are 8% more males than females who studied the top 15 junior Mathematics units in 2018. 
+
+There is a likelihood that this does not reflect the overall distribution of gender at the University of Sydney. In fact, the data set represents only a small sample of the total amount of students enrolled at the University of Sydney ([59 129](https://sydney.edu.au/content/dam/corporate/documents/about-us/values-and-visions/Annual-report-2.pdf#page=12) in 2017). 
+
+<br>
+
+  **3. How many students are enrolled in each unit of study?**
+  
+```{r unit of study table}
+# Creating a frequency table according to unit of study
+data_uos = table(data$unit_of_study_identifier)
+`Mathematics Units in 2018` = data$unit_of_study_identifier
+
+# Plotting the table
+tab1(`Mathematics Units in 2018`, sort.group = "decreasing", cum.percent = F, graph = F)
+```
+
+Thus, about 1800 students studied the most popular junior mathematics unit of study in 2018. With the least popular accommodating around 200 or 2% of the total.
+
+```{r mean students per unit}
+# Looking at the mean number of students per unit
+cat(sprintf("Mean students per unit: %d", mean(data_uos)))
+```
+
+While each unit of study accommodated 723 students on average.
+
+<br>
+
+The analysis above can also be visualised using circle packing:
+
+```{r circle packing each uos}
+# Creating frequency tables for each unit of study by semester
+uos_sem_1 = data$unit_of_study_identifier[data$semester == 1]
+data_uos_sem_1 = data.frame(table(uos_sem_1))
+
+uos_sem_2 = data$unit_of_study_identifier[data$semester == 2]
+data_uos_sem_2 = data.frame(table(uos_sem_2))
+
+# Changing the class of `semester` to a factor variable
+data_uos_sem_1$semester = as.factor(1)
+data_uos_sem_2$semester = as.factor(2)
+
+# Merging the frequency tables for semester 1 and 2 into one data set called `data_uos_sem`
+data = merge(data, data_uos_sem_1, by.x = c("unit_of_study_identifier", "semester"), by.y = c("uos_sem_1", "semester"), all.x = T)
+data = merge(data, data_uos_sem_2, by.x = c("unit_of_study_identifier", "semester"), by.y = c("uos_sem_2", "semester"), all.x = T)
+
+# Combining frequency columns into a single column 
+data$freq = with(data, pmax(Freq.x, Freq.y, na.rm = TRUE))
+
+# Removing old columns
+drops = c("Freq.x","Freq.y")
+data = data[, !(names(data) %in% drops)]
+
+# Creating a uniform vector of 1's
+data$students = 1
+
+# Creating `data_grouped` to summarise the number of students per group
+data_grouped = data %>% 
+  group_by(unit_of_study_identifier, semester, age_category, mode_of_study, gender, dom_int) %>%
+  summarise(size = sum(students))
+
+# Merging `data_grouped` with `data`
+data = merge(data, data_grouped, all.x = T)
+
+# Creating a phylogenetic path for each unit of study
+data$pathString = paste("Top 15 Junior Maths Subjects", data$unit_of_study_identifier, data$semester, data$age_category, data$mode_of_study, data$gender, data$dom_int, sep = "/")
+
+# Creating the 'tree_uos_sem' data tree structure
+tree_uos_sem = as.Node(data)
+
+# Circle packing of the phylogenetic path coloured by depth
+circlepackeR(tree_uos_sem, color_min = "RGB(0,100,150)", color_max = "RGB(200,200,0)")
+```
+
+Similarly to the table above, this visualisation shows that the most enrolled units of study are UNIT S, O and H in descending order.
+
+
+<br>
+
+## Limitations
+
+Outliers have been excluded from the data set or altered to preserve anonymity. This includes students:
+
+- That **didn't record any access to Canvas** over the whole semester
+- Who obtained **non-standard grades** (e.g. discontinuation, withdrawal, absent fail and failed requirements)
+- Who **identify as neither male nor female**, whom have instead been recorded in the data set as female
+
+
+
+<br>
+
+## Ethical Concerns
+
+No serious ethical concerns with distributing the data set or its results seem to be apparent. 
+
+This is mainly because the data has been completely anonymised with arbitrary `UNIT _` names as well as broad age categories and the removal of distinct outliers. 
+
+However, one still may be able to discern information from the data set about a certain individual's characteristics based on specific knowledge of their mark or tendency to access Canvas.
+
+
+
+<br>
+
+## Domain Knowledge
+
+**Full time** is [defined](https://sydney.edu.au/students/change-study-load.html) as taking 18 or more credit points as a domestic student, or 24 as a student visa holder, in one semester.
+
+**Part time** students have a reduced study load of less than 18 credit points per semester.
+
+**Performance bands** for various [marks ranges](https://sydney.edu.au/students/guide-to-grades.html) include:
+
+| Result Code | Result Name      | Mark Range |
+|-------------|------------------|------------|
+|      HD     | High Distinction |  85 - 100  |
+|      DI     |    Distinction   |   75 - 84  |
+|     CR      |      Credit      |   65 - 74  |
+|     PS      |       Pass       |   50 - 64  |
+|     FA      |       Fail       |   0 - 49   |
+
+There are 29 junior mathematics **units of study** at offer at the University of Sydney, [including](https://www.maths.usyd.edu.au/u/UG/JM/):
+
+- Advanced Units
+- Normal Units
+- Fundamental Units
+- Other Units (not available to all students)
+
+Thus, only half (15/29) of the available units of study have been recorded in this data set.
+
+<br>
+
+<br>
+
+***
+
+# Research Question
+
+## Who performs the best and worst at junior-level mathematics at the University of Sydney?
+
+In this research question I have assumed that the current academic performance of the students studying junior mathematics at the University of Sydney has changed by little between 2018 and 2019. In fact, according to [Times Higher Education](https://www.timeshighereducation.com/world-university-rankings/university-sydney#survey-answer) the University of Sydney's score for teaching has remained constant since 2017, while it's ranking position has stayed around 60th since 2015. Thus, I have extrapolated that the findings from this data set serve as a general truth in the current year of 2019.
+
+<br>
+
+<u>
+<h1 style="font-size:22px;">
+Comparing Mark Distributions
+</h1>
+</u>
+
+First of all, in order to begin we will need to create a data set with unique groupings for each type of student according to their characteristics. Namely, according to the qualitative variables gender, age, semester, mode of study and domestic or international status. For analysis purposes we should also find the median mark and IQR of each group, and record them as two columns in our matrix.
+
+```{r grouping each unique distribution of students}
+# Creating a new data frame `groups` with all possible combinations of the qualitative variables in `data`. Also aggregating to find each group's median and IQR.
+grouped_median = aggregate(data$mark, list(data$gender, data$age_category, data$semester, data$mode_of_study, data$dom_int), median)
+grouped_iqr = aggregate(data$mark, list(data$gender, data$age_category, data$semester, data$mode_of_study, data$dom_int), IQR)
+
+# Merging the aggregates to form `groups`
+groups = merge(grouped_median, grouped_iqr)
+
+# Changing to appropriate column names
+colnames(groups) = c("gender", "age_category", "semester", "mode_of_study", "dom_int", "median_mark", "iqr_mark")
+```
+
+Now, let's write a function to compare two distributions and find which one occurs more often over larger values. This will equip us with the ability to compare the mark distributions of every group of maths students and thus find trends in the best and worst performing groups.
+
+```{r function to compare distributions}
+# Making a function to find the difference between two distributions
+compare_dist = function(dist1_str, dist2_str) {
+  
+  # Evaluating the input strings as matrix paths
+  dist1 = eval(parse(text = dist1_str))
+  dist2 = eval(parse(text = dist2_str))
+  
+  # Accounting for distributions that have less than 2 elements
+  if (length(dist1) < 2) {
+    return(-1)
+  }
+  if (length(dist2) < 2) {
+    return(0)
+  }
+  
+  # Creating density objects for both distributions
+  dens1 = density.default(dist1)
+  dens2 = density.default(dist2)
+  
+  # Finding the average median of both distributions
+  avg_median = mean(median(dist1), median(dist2))
+  
+  # Accounting for the average median being out of the range of either distribution
+  if (avg_median > min(max(dens1$x), max(dens2$x))) {
+    if (median(dist1) > median(dist2)) {
+      return(1)
+    }
+    return(0)
+  }
+  if (avg_median < max(min(dens1$x), min(dens2$x))) {
+    if (median(dist1) > median(dist2)) {
+      return(1)
+    }
+    return(0)
+  }
+  
+  # Returning the integral difference between the first and second density distributions. Integrating from the average median value to the maximum x value in the distribution's range.
+  return(integrate.xy(dens1$x, dens1$y, a = avg_median) - integrate.xy(dens2$x, dens2$y, a = avg_median))
+}
+```
+
+The above function `compare_dist` compares two distributions by measuring the difference in the area under their curves from the average of their median values to the maximum $x$ values in their range. This idea is mathematically represented as follows:
+
+$$ a = \frac{med(x_A) + med(x_B)}{2} $$
+$$ difference = \int_a^{max(x_A)} A(x)~dx - \int_a^{max(x_B)} B(x)~dx $$
+
+Let's write a wrapper function that applies `compare_dist` to a vector of distributions and returns an ordered vector of distribution ranks.
+
+```{r function to compare distributions in a vector}
+# Function to count how many distributions a certain distribution is greater than. Returns `success_vector` with this information.
+loop_compare = function(vect) {
+  
+  # Creating an empty vector with entries 0
+  success_vect = rep(0, length(vect))
+  
+  # Looping through each distribution
+  for (i in 1:length(vect)) {
+    successful = 0
+    for (j in 1:length(vect)) {
+      test = compare_dist(vect[i], vect[j])
+      
+      # Using 0.01 rather than 0 as a margin of error
+      if (test >= 0.01) {
+        successful = successful + 1
+        success_vect[i] = successful
+      }
+      
+      # Accounting for distributions of less than 2 elements
+      if (test == -1) {
+        success_vect[i] = -1
+        break
+      }
+    }
+  }
+  return(success_vect)
+}
+```
+
+Above, `loop_compare` returns the ordered vector `success_vect` with integer values representing the number of distributions that a certain distribution is greater than according to `compare_dist`. I use 0.01 or larger as my indicator that distribution A is more likely observes larger marks than distribution B. I believe that any difference equal to or greater than this is statistically significant.
+
+<br>
+
+Now we can apply this functionality to all the possible combinations of students in `groups` and thus find the best and worst performing groups of students studying junior mathematics.
+
+```{r comparing every groups, warning = F}
+# Assigning all possible distributions to `dist_vector`
+dist_vector = apply(groups, 1, function(x) paste0("data$mark[data$gender == ", "'", x[1], "'", " & data$age_category == ", "'", x[2], "'", " & data$semester == ", x[3], " & data$mode_of_study == ", "'", x[4], "'", " & data$dom_int == ", "'", x[5], "'", "]"))
+
+# Comparing all possible distributions
+success = loop_compare(dist_vector)
+
+# Binding the `success` vector to the `groups` data frame
+groups = cbind(groups, success)
+
+# Table of the best and worst 8 rows in the data set
+dust(groups[with(groups, order(success, decreasing = T)),][c(1:8, 45:52),]) %>%
+  sprinkle_border(8, border = "bottom")
+```
+
+The split table above shows 8 groups of students who performed the best in junior mathematics during 2018, followed by 8 who performed the worst, both in descending order. This judgement of mark performance is made according to the `success` parameter, which measures how many groups of students a certain group attained larger marks than.
+
+<br>
+
+Some what surprisingly, the **best performing group** was full time international women over 25. However this only represented 6 individuals in 2018, a small population which may not be entirely reflective of their year-to-year performance.
+
+Nonetheless, full time domestic male and female students, aged 18 and below, performed almost exactly the same in both semesters with common median marks of 71 and 72 in semesters 1 and 2 respectively. This marginal difference between semesters may be due to younger students adjusting to university life over the course of the year. In spite of these commonalities however, according to our distribution comparison tests females out-performed males in both semesters for this category of students.
+
+Overall, it appears that the best performing groups were:
+
+ - Full time domestic students 18 and under, as well as
+ - Full time international women
+ 
+<br>
+
+On the other hand, the **worst performing group** was part time international women aged 19-21 in semester 1. Note that international women appear in both extremes of the mark spectrum.
+
+Only marginally better in performance were part-time international men aged 22-25 and part time domestic men aged 18 and under, both in semester 2. Interestingly, they seemed to perform much worse in semester 2 as opposed to the beginning of the year, perhaps suggesting that less inclined students lose motivation over the course of the year. Their median mark was 42 and 40.5 respectively, receiving a fail on average. 
+
+Overall, the worse performing groups appear to be characterised by:
+
+- Part time domestic students in semester 1
+
+<br>
+
+In order to visualise our results let's compare the mark distribution for the best and worst performing groups of students with a comparative density plot:
+
+```{r density plot of the best and worst groups, fig.width = 10}
+# Binding `dist_vector` the `groups` data frame
+groups = cbind(groups, dist_vector)
+
+# Subsetting `groups` into the best and worst performing 8 groups
+groups_top8 = groups %>%
+  top_n(8, success) %>%
+  arrange(desc(success)) %>%
+  mutate(performance = "Best 8")
+
+groups_bottom8 = groups %>%
+  top_n(-12, success) %>%
+  top_n(8, success) %>%
+  arrange(desc(success)) %>%
+  mutate(performance = "Worse 8")
+
+groups_subset = rbind(groups_top8, groups_bottom8)
+
+# Adding a legend string for each group
+groups_subset$legend = paste(groups_subset$mode_of_study, ifelse(groups_subset$gender == "M", "Male", "Female"), groups_subset$dom_int, "students", groups_subset$age_category, "in", ifelse(groups_subset$semester == 1, "Semester 1", "Semester 2"), sep = " ")
+
+# Merging `groups_subset` with `data` to form `data_subset`
+data_subset = merge(data, groups_subset)
+
+# Density plot of the mark distribution for the best and worst 8 groups of students
+ggplotly(ggplot(data_subset, aes(mark, fill = legend, success = success)) +
+           geom_density(aes(color = legend), alpha = 0.8, position = "stack") +  
+           facet_wrap(~performance, nr = 2) +
+           ggtitle("Mark Density Distribution for the Best and Worst 8 Groups of Students") +
+           theme_bw())
+```
+
+The density plot of the mark distribution for each group of students above clearly indicates a juxtaposition between the stacked distribution for the best and worst 8 groups. In particular, the median appears to closer to 75 for the top performing groups, in comparison to 50 for those in the bottom tier.
+
+Interestingly, there appears to be a **dependency between the mode of study and mark distribution** of each group of students. In particular, part time individuals seem to consistently score lower marks than those who study full time. This may be because full time students are more dedicated to their studies and pressured to keep up to date with their work. 
+
+<br>
+
+<u>
+<h1 style="font-size:22px;">
+Characterising High Distinctions and Failure
+</h1>
+</u>
+
+Now, let's examine the characteristics of high distinction, distinction and failing students specifically. This knowledge should be of great interest to the stakeholder for targeting intelligent junior mathematicians from the University of Sydney.
+
+Let's explore this by looking at the percentage difference between HD, DI or FA awarded students and the whole cohort for each characteristic. Note that the HD (High Distinction), DI (Distinction) and FA (Fail) awards correspond to [these mark intervals](#domain-knowledge).
+
+```{r HD DI FA students bar plot, fig.width = 10}
+# Subsetting `data` for students who received a HD into `data_hd`, a DI into `data_di` and an FA into `data_fa`
+data_hd = data[data$mark >= 85 & data$mark <= 100 & data$mode_of_study != "Unknown",]
+data_di = data[data$mark >= 75 & data$mark < 85 & data$mode_of_study != "Unknown",]
+data_fa = data[data$mark >= 0 & data$mark < 50 & data$mode_of_study != "Unknown",]
+
+# Creating a new data set `data_clean` without "Unknown" as a `mode_of_study` since it obscures analysis
+data_clean = data %>%
+  mutate(mode_of_study = str_remove(mode_of_study, "Unknown"))
+
+# Finding the proportions of all students in each categorical variable
+percent_sem = as.matrix(prop.table(table(data_clean$semester)) * 100)
+percent_study = as.matrix(prop.table(table(data_clean$mode_of_study)) * 100)
+percent_gender = as.matrix(prop.table(table(data_clean$gender)) * 100)
+percent_age = as.matrix(prop.table(table(data_clean$age_category)) * 100)
+percent_domint = as.matrix(prop.table(table(data_clean$dom_int)) * 100)
+
+# Removing a rogue row
+percent_study = percent_study[-1,]
+
+# Creating proportion tables for HD, DI and FA students in each categorical variable of interest
+percent_hd_sem = as.matrix(prop.table(table(data_hd$semester)) * 100)
+percent_hd_study = as.matrix(prop.table(table(data_hd$mode_of_study)) * 100)
+percent_hd_gender = as.matrix(prop.table(table(data_hd$gender)) * 100)
+percent_hd_age = as.matrix(prop.table(table(data_hd$age_category)) * 100)
+percent_hd_domint = as.matrix(prop.table(table(data_hd$dom_int)) * 100)
+
+percent_di_sem = as.matrix(prop.table(table(data_di$semester)) * 100)
+percent_di_study = as.matrix(prop.table(table(data_di$mode_of_study)) * 100)
+percent_di_gender = as.matrix(prop.table(table(data_di$gender)) * 100)
+percent_di_age = as.matrix(prop.table(table(data_di$age_category)) * 100)
+percent_di_domint = as.matrix(prop.table(table(data_di$dom_int)) * 100)
+
+percent_fa_sem = as.matrix(prop.table(table(data_fa$semester)) * 100)
+percent_fa_study = as.matrix(prop.table(table(data_fa$mode_of_study)) * 100)
+percent_fa_gender = as.matrix(prop.table(table(data_fa$gender)) * 100)
+percent_fa_age = as.matrix(prop.table(table(data_fa$age_category)) * 100)
+percent_fa_domint = as.matrix(prop.table(table(data_fa$dom_int)) * 100)
+
+# Removing "Unknown" as a mode_of_study since it obscures analysis
+percent_hd_study = percent_hd_study[-3,]
+percent_di_study = percent_di_study[-3,]
+percent_fa_study = percent_fa_study[-3,]
+
+# Calculating the difference between HD, DI and FA students and the entire cohort
+hd_sem_diff = as.data.frame(percent_hd_sem - percent_sem)
+hd_study_diff = as.data.frame(percent_hd_study - percent_study)
+hd_gender_diff = as.data.frame(percent_hd_gender - percent_gender)
+hd_age_diff = as.data.frame(percent_hd_age - percent_age)
+hd_domint_diff = as.data.frame(percent_hd_domint - percent_domint)
+
+di_sem_diff = as.data.frame(percent_di_sem - percent_sem)
+di_study_diff = as.data.frame(percent_di_study - percent_study)
+di_gender_diff = as.data.frame(percent_di_gender - percent_gender)
+di_age_diff = as.data.frame(percent_di_age - percent_age)
+di_domint_diff = as.data.frame(percent_di_domint - percent_domint)
+
+fa_sem_diff = as.data.frame(percent_fa_sem - percent_sem)
+fa_study_diff = as.data.frame(percent_fa_study - percent_study)
+fa_gender_diff = as.data.frame(percent_fa_gender - percent_gender)
+fa_age_diff = as.data.frame(percent_fa_age - percent_age)
+fa_domint_diff = as.data.frame(percent_fa_domint - percent_domint)
+
+# Changing to appropriate column names
+colnames(hd_sem_diff)[1] = "HD"
+colnames(hd_study_diff)[1] = "HD"
+colnames(hd_gender_diff)[1] = "HD"
+colnames(hd_age_diff)[1] = "HD"
+colnames(hd_domint_diff)[1] = "HD"
+
+colnames(di_sem_diff)[1] = "DI"
+colnames(di_study_diff)[1] = "DI"
+colnames(di_gender_diff)[1] = "DI"
+colnames(di_age_diff)[1] = "DI"
+colnames(di_domint_diff)[1] = "DI"
+
+colnames(fa_sem_diff)[1] = "FA"
+colnames(fa_study_diff)[1] = "FA"
+colnames(fa_gender_diff)[1] = "FA"
+colnames(fa_age_diff)[1] = "FA"
+colnames(fa_domint_diff)[1] = "FA"
+
+# Joining HD, DI and FA students
+sem_diff = cbind(hd_sem_diff, di_sem_diff, fa_sem_diff)
+study_diff = cbind(hd_study_diff, di_study_diff, fa_study_diff)
+gender_diff = cbind(hd_gender_diff, di_gender_diff, fa_gender_diff)
+age_diff = cbind(hd_age_diff, di_age_diff, fa_age_diff)
+domint_diff = cbind(hd_domint_diff, di_domint_diff, fa_domint_diff)
+
+# Customising hover text
+sem_diff$hover_text_hd = sprintf("Semester %s | %.2f%%", row.names(sem_diff), sem_diff$HD)
+sem_diff$hover_text_di = sprintf("Semester %s | %.2f%%", row.names(sem_diff), sem_diff$DI)
+sem_diff$hover_text_fa = sprintf("Semester %s | %.2f%%", row.names(sem_diff), sem_diff$FA)
+
+study_diff$hover_text_hd = sprintf("%s | %.2f%%", row.names(study_diff), study_diff$HD)
+study_diff$hover_text_di = sprintf("%s | %.2f%%", row.names(study_diff), study_diff$DI)
+study_diff$hover_text_fa = sprintf("%s | %.2f%%", row.names(study_diff), study_diff$FA)
+
+gender_diff$hover_text_hd = sprintf("%s | %.2f%%", ifelse(row.names(gender_diff) == "F", "Female", "Male"), gender_diff$HD)
+gender_diff$hover_text_di = sprintf("%s | %.2f%%", ifelse(row.names(gender_diff) == "F", "Female", "Male"), gender_diff$DI)
+gender_diff$hover_text_fa = sprintf("%s | %.2f%%", ifelse(row.names(gender_diff) == "F", "Female", "Male"), gender_diff$FA)
+
+age_diff$hover_text_hd = sprintf("%s | %.2f%%", row.names(age_diff), age_diff$HD)
+age_diff$hover_text_di = sprintf("%s | %.2f%%", row.names(age_diff), age_diff$DI)
+age_diff$hover_text_fa = sprintf("%s | %.2f%%", row.names(age_diff), age_diff$FA)
+
+domint_diff$hover_text_hd = sprintf("%s | %.2f%%", row.names(domint_diff), domint_diff$HD)
+domint_diff$hover_text_di = sprintf("%s | %.2f%%", row.names(domint_diff), domint_diff$DI)
+domint_diff$hover_text_fa = sprintf("%s | %.2f%%", row.names(domint_diff), domint_diff$FA)
+
+# Bar plot of these percentage changes
+bar_sem = plot_ly(sem_diff, x = ~row.names(sem_diff), y = ~HD, type = "bar", name = "HD", text = ~hover_text_hd, hoverinfo = "text", marker = list(color = 'rgba(50, 171, 96, 0.7)', line = list(color = 'rgba(50, 171, 96, 1.0)', width = 1.5))) %>%
+  add_trace(y = ~DI, name = "DI", text = ~hover_text_di, marker = list(color = 'rgba(55, 128, 191, 0.7)', line = list(color = 'rgba(55, 128, 191, 1.0)', width = 1.5))) %>%
+  add_trace(y = ~FA, name = "FA", text = ~hover_text_fa, marker = list(color = 'RGBA(0,0,0,0.35)', line = list(color = 'RGBA(0,0,0,0.45)', width = 1.5))) %>%
+  layout(title = "Percentage Difference Between HD, DI and FA Students and the Whole Cohort in Each Category", yaxis = list(title = "Percentage Change (%)", range = c(-10, 10)), legend = list(x = 0, y = 0.95, bgcolor = "#E2E2E2", bordercolor = "#FFFFFF", borderwidth = 2), paper_bgcolor = 'rgba(245, 246, 249, 1)', plot_bgcolor = 'rgba(245, 246, 249, 1)')
+
+bar_study = plot_ly(study_diff, x = ~row.names(study_diff), y = ~HD, type = "bar", name = "HD", text = ~hover_text_hd, hoverinfo = "text", marker = list(color = 'rgba(50, 171, 96, 0.7)', line = list(color = 'rgba(50, 171, 96, 1.0)', width = 1.5)), showlegend = F) %>%
+  add_trace(y = ~DI, name = "DI", text = ~hover_text_di, marker = list(color = 'rgba(55, 128, 191, 0.7)', line = list(color = 'rgba(55, 128, 191, 1.0)', width = 1.5))) %>%
+  add_trace(y = ~FA, name = "FA", text = ~hover_text_fa, marker = list(color = 'RGBA(0,0,0,0.35)', line = list(color = 'RGBA(0,0,0,0.45)', width = 1.5))) %>%
+  layout(yaxis = list(title = "", range = c(-10, 10), showticklabels = F))
+
+bar_gender = plot_ly(gender_diff, x = ~row.names(gender_diff), y = ~HD, type = "bar", name = "HD", text = ~hover_text_hd, hoverinfo = "text", marker = list(color = 'rgba(50, 171, 96, 0.7)', line = list(color = 'rgba(50, 171, 96, 1.0)', width = 1.5)), showlegend = F) %>%
+  add_trace(y = ~DI, name = "DI", text = ~hover_text_di, marker = list(color = 'rgba(55, 128, 191, 0.7)', line = list(color = 'rgba(55, 128, 191, 1.0)', width = 1.5))) %>%
+  add_trace(y = ~FA, name = "FA", text = ~hover_text_fa, marker = list(color = 'RGBA(0,0,0,0.35)', line = list(color = 'RGBA(0,0,0,0.45)', width = 1.5))) %>%
+  layout(yaxis = list(title = "", range = c(-10, 10), showticklabels = F))
+
+bar_age = plot_ly(age_diff, x = ~row.names(age_diff), y = ~HD, type = "bar", name = "HD", text = ~hover_text_hd, hoverinfo = "text", marker = list(color = 'rgba(50, 171, 96, 0.7)', line = list(color = 'rgba(50, 171, 96, 1.0)', width = 1.5)), showlegend = F) %>%
+  add_trace(y = ~DI, name = "DI", text = ~hover_text_di, marker = list(color = 'rgba(55, 128, 191, 0.7)', line = list(color = 'rgba(55, 128, 191, 1.0)', width = 1.5))) %>%
+  add_trace(y = ~FA, name = "FA", text = ~hover_text_fa, marker = list(color = 'RGBA(0,0,0,0.35)', line = list(color = 'RGBA(0,0,0,0.45)', width = 1.5))) %>%
+  layout(yaxis = list(title = "", range = c(-10, 10), showticklabels = F))
+
+bar_domint = plot_ly(domint_diff, x = ~row.names(domint_diff), y = ~HD, type = "bar", name = "HD", text = ~hover_text_hd, hoverinfo = "text", marker = list(color = 'rgba(50, 171, 96, 0.7)', line = list(color = 'rgba(50, 171, 96, 1.0)', width = 1.5)), showlegend = F) %>%
+  add_trace(y = ~DI, name = "DI", text = ~hover_text_di, marker = list(color = 'rgba(55, 128, 191, 0.7)', line = list(color = 'rgba(55, 128, 191, 1.0)', width = 1.5))) %>%
+  add_trace(y = ~FA, name = "FA", text = ~hover_text_fa, marker = list(color = 'RGBA(0,0,0,0.35)', line = list(color = 'RGBA(0,0,0,0.45)', width = 1.5))) %>%
+  layout(yaxis = list(title = "", range = c(-10, 10), showticklabels = F))
+
+subplot(bar_sem, bar_study, bar_gender, bar_age, bar_domint, titleY = T)
+```
+
+As you can see in the comparative bar plot above, there are unique differences between HD, DI and FA awarded students and the general cohort of junior mathematicians.
+
+Students were more likely to achieve a **High Distinction** if they were:
+
+ - In semester 1
+ - Studying full time
+ - Male
+ - Aged 18 and under
+ - and Domestic
+ 
+Whereas, **Distinction** awarded students were generally:
+
+ - Not found more than usual in a particular semester
+ - Studying full time
+ - Female
+ - Aged 18 and under
+ - Only marginally (1.71%) more domestic than the overall cohort
+ 
+In contrast, students who obtained a **Fail** were more than usual:
+
+ - Not found in a particular semester
+ - Studying part time
+ - Male
+ - Aged over 25
+ - International
+ 
+Since there appears to be no clear distinction between high and low performing students in their semester of study or gender, we can disregard a dependence relationship between mark achieved and these categorical variables. In fact, according to the 2014 journal article [*"The Science of Sex Differences in Science and Mathematics"*](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4270278/) there tends to be *"more males at both high- and low-ability extremes"*. This is evident in the results shown above, wherein males are more likely to be awarded a High Distinction or Fail than the average cohort. 
+
+However, **three particular characteristics of higher performing students** stand out. Namely they are generally:
+
+ - Enrolled full time
+ - Aged 18 and under
+ - Domestic in origin
+ 
+Interestingly, according to a [media article](http://theconversation.com/are-international-students-passing-university-courses-at-the-same-rate-as-domestic-students-116666) published in 2019 *"international students overall fail a larger share of the subjects they take than domestic students"*. They attribute these results to growing concerns regarding the admission of international students to Australian universities without the necessary English-language skills.
+ 
+The aforementioned conclusions are momentous in targeting high performing intelligent junior mathematicians from the University of Sydney for internships or employment in math-focussed roles.
+
+Moreover, we have solved in particular our research question about who performs the best and worst at junior-level mathematics at the University of Sydney.
+
+
+
+<br>
+
+***
+
+# References
+
+Annual Report 2017 (Rep.). (2018, April). Retrieved May 4, 2019, from The University of Sydney website: https://sydney.edu.au/content/dam/corporate/documents/about-us/values-and-visions/Annual-report-2.pdf#page=12
+
+University of Sydney Breakdown. (2019, May 08). Retrieved May 22, 2019, from https://www.timeshighereducation.com/world-university-rankings/university-sydney#survey-answer
+
+Guide to grades. (n.d.). Retrieved May 22, 2019, from https://sydney.edu.au/students/guide-to-grades.html
+
+Change your study load. (n.d.). Retrieved May 24, 2019, from https://sydney.edu.au/students/change-study-load.html
+
+Junior Mathematics and Statistics. (n.d.). Retrieved May 24, 2019, from https://www.maths.usyd.edu.au/u/UG/JM/
+
+Halpern, D. F., Benbow, C. P., Geary, D. C., Gur, R. C., Hyde, J. S., & Gernsbacher, M. A. (2007). The Science of Sex Differences in Science and Mathematics. Psychological science in the public interest : a journal of the American Psychological Society, 8(1), 1-51. doi:10.1111/j.1529-1006.2007.00032.x
+
+Norton, A. (2019, May 10). Are international students passing university courses at the same rate as domestic students? Retrieved May 25, 2019, from http://theconversation.com/are-international-students-passing-university-courses-at-the-same-rate-as-domestic-students-116666
+
+<br>
+
+# Session Info
+
+```{r session info}
+sessionInfo()
+```
